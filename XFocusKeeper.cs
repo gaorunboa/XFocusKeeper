@@ -7,11 +7,13 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms;
 
-
 namespace ActiveWindowMonitor
 {
     public class Form1 : Form
     {
+        // ========== 版本号 ==========
+        public const string AppVersion = "1.0.0";
+
         // ---------- Windows API 声明 ----------
         [DllImport("user32.dll")]
         private static extern IntPtr GetForegroundWindow();
@@ -97,7 +99,7 @@ namespace ActiveWindowMonitor
             this.Location = EnsureVisibleLocation(this.Location);
         }
 
-        // 迁移旧版配置文件（如果存在且新配置文件不存在）
+        // 迁移旧版配置文件
         private void TryMigrateOldSettings()
         {
             try
@@ -117,7 +119,6 @@ namespace ActiveWindowMonitor
             catch { /* 迁移失败不影响主程序 */ }
         }
 
-        // 专门用于调试图标加载的日志方法
         private void LogIconDebug(string message)
         {
             try
@@ -129,36 +130,52 @@ namespace ActiveWindowMonitor
             catch { /* 忽略写入错误 */ }
         }
 
-        private void SetupUI()
+        // ========== 图标获取（带降级策略） ==========
+        // 改为 public static，供 AboutForm 调用
+        public static Icon GetAppIcon()
         {
-            // 加载与exe同名的ico文件（例如 XFocusKeeper.exe.ico）
             string exePath = Application.ExecutablePath;
             string iconPath = Path.ChangeExtension(exePath, ".ico");
 
-            LogIconDebug(string.Format("尝试加载窗体图标，exe路径: {0}", exePath));
-            LogIconDebug(string.Format("推测的图标路径: {0}", iconPath));
-            LogIconDebug(string.Format("图标文件是否存在: {0}", File.Exists(iconPath)));
+            // 1. 外部 .ico 文件
+            if (File.Exists(iconPath))
+            {
+                try
+                {
+                    // 静态方法无法使用 LogIconDebug，但图标加载不影响主功能，可静默
+                    return new Icon(iconPath);
+                }
+                catch { }
+            }
 
+            // 2. 从 exe 提取内嵌图标
             try
             {
-                if (File.Exists(iconPath))
-                {
-                    this.Icon = new Icon(iconPath);
-                    LogIconDebug("窗体图标加载成功。");
-                }
-                else
-                {
-                    LogIconDebug("图标文件不存在，窗体将显示默认图标。");
-                }
+                Icon exeIcon = Icon.ExtractAssociatedIcon(exePath);
+                if (exeIcon != null)
+                    return exeIcon;
+            }
+            catch { }
+
+            // 3. 系统默认应用图标
+            return SystemIcons.Application;
+        }
+
+        private void SetupUI()
+        {
+            // 窗体图标
+            try
+            {
+                this.Icon = GetAppIcon();
             }
             catch (Exception ex)
             {
-                LogIconDebug(string.Format("窗体图标加载异常: {0}", ex.Message));
+                LogIconDebug("窗体图标设置异常：" + ex.Message);
             }
 
             this.TopMost = true;
-            this.Text = "活动窗口监视器 (顶层)";
-            this.Size = new Size(550, 250);     // 默认初始尺寸
+            this.Text = "活动窗口监视器 v" + AppVersion + " (顶层)";
+            this.Size = new Size(550, 250);
             this.StartPosition = FormStartPosition.Manual;
             this.ShowInTaskbar = false;
 
@@ -181,7 +198,13 @@ namespace ActiveWindowMonitor
         private void SetupTray()
         {
             trayMenu = new ContextMenuStrip();
+
+            // 显示窗口
             trayMenu.Items.Add("显示窗口", null, ShowWindow_Click);
+            // 隐藏窗口
+            trayMenu.Items.Add("隐藏窗口", null, HideWindow_Click);
+
+            trayMenu.Items.Add("-");
 
             showInTaskbarMenuItem = new ToolStripMenuItem("显示在任务栏");
             showInTaskbarMenuItem.CheckOnClick = true;
@@ -207,20 +230,19 @@ namespace ActiveWindowMonitor
             trayMenu.Items.Add(fontSizeMenuItem);
 
             trayMenu.Items.Add("-");
-
             trayMenu.Items.Add("在文件夹中定位EXE", null, LocateExeFile_Click);
 
             trayMenu.Items.Add("-");
             trayMenu.Items.Add("保存配置", null, SaveConfig_Click);
             trayMenu.Items.Add("应用配置", null, ApplyConfig_Click);
 
-            // ===== 新增：关于 / 联系我 =====
             trayMenu.Items.Add("-");
             trayMenu.Items.Add("关于 / 联系我", null, About_Click);
 
             trayMenu.Items.Add("-");
             trayMenu.Items.Add("退出", null, Exit_Click);
 
+            // 托盘图标
             trayIcon = new NotifyIcon
             {
                 Text = "活动窗口监视器",
@@ -228,25 +250,13 @@ namespace ActiveWindowMonitor
                 Visible = true
             };
 
-            // 托盘图标同样使用与exe同名的ico
-            string exePath = Application.ExecutablePath;
-            string iconPath = Path.ChangeExtension(exePath, ".ico");
-            LogIconDebug(string.Format("尝试加载托盘图标: {0}，存在: {1}", iconPath, File.Exists(iconPath)));
             try
             {
-                if (File.Exists(iconPath))
-                {
-                    trayIcon.Icon = new Icon(iconPath);
-                    LogIconDebug("托盘图标加载成功。");
-                }
-                else
-                {
-                    LogIconDebug("托盘图标文件不存在，将显示默认图标。");
-                }
+                trayIcon.Icon = GetAppIcon();
             }
             catch (Exception ex)
             {
-                LogIconDebug(string.Format("托盘图标加载异常: {0}", ex.Message));
+                LogIconDebug("托盘图标设置异常：" + ex.Message);
             }
 
             trayIcon.MouseClick += TrayIcon_MouseClick;
@@ -256,7 +266,6 @@ namespace ActiveWindowMonitor
         protected override void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
-            // 最终位置调整，确保可见（覆盖DPI变化等情况）
             if (this.StartPosition == FormStartPosition.Manual)
             {
                 this.Location = EnsureVisibleLocation(this.Location);
@@ -289,15 +298,11 @@ namespace ActiveWindowMonitor
             uint pid;
             GetWindowThreadProcessId(currentHwnd, out pid);
 
-            // 如果前台窗口是本程序自身，则暂停刷新，方便用户复制
             if ((int)pid == currentProcessId)
-            {
                 return;
-            }
 
             string procName = GetProcessNameById(pid);
 
-            // 黑名单检测与焦点保护
             if (!string.IsNullOrEmpty(procName) && blacklistProcessNames.Contains(procName))
             {
                 if ((DateTime.Now - lastSwitchTime).TotalMilliseconds < switchCooldownMs)
@@ -313,7 +318,6 @@ namespace ActiveWindowMonitor
                 return;
             }
 
-            // 正常窗口：记录并更新信息
             lastGoodWindow = currentHwnd;
             UpdateActiveWindowInfo();
         }
@@ -354,7 +358,6 @@ namespace ActiveWindowMonitor
                 hWnd, processId, exePath);
             txtInfo.Text = displayText;
 
-            // 仅当窗口句柄发生变化时才记录日志
             if (hWnd != lastLoggedWindow)
             {
                 lastLoggedWindow = hWnd;
@@ -402,7 +405,6 @@ namespace ActiveWindowMonitor
             }
         }
 
-        // ---------- 主功能日志写入 ----------
         private void WriteLog(string message)
         {
             lock (logLock)
@@ -413,11 +415,10 @@ namespace ActiveWindowMonitor
                     string logFilePath = Path.Combine(logDirectory, logFileName);
                     File.AppendAllText(logFilePath, message + Environment.NewLine, Encoding.UTF8);
                 }
-                catch { /* 忽略日志写入错误，不影响主功能 */ }
+                catch { }
             }
         }
 
-        // ---------- 日志清理 ----------
         private void CleanOldLogs()
         {
             try
@@ -434,17 +435,12 @@ namespace ActiveWindowMonitor
 
                 for (int i = 30; i < logFiles.Length; i++)
                 {
-                    try
-                    {
-                        File.Delete(logFiles[i]);
-                    }
-                    catch { /* 忽略单个文件删除失败 */ }
+                    try { File.Delete(logFiles[i]); } catch { }
                 }
             }
-            catch { /* 忽略清理异常 */ }
+            catch { }
         }
 
-        // ---------- 在文件夹中定位EXE ----------
         private void LocateExeFile_Click(object sender, EventArgs e)
         {
             try
@@ -480,6 +476,11 @@ namespace ActiveWindowMonitor
             this.Show();
             this.WindowState = FormWindowState.Normal;
             this.TopMost = true;
+        }
+
+        private void HideWindow_Click(object sender, EventArgs e)
+        {
+            this.Hide();
         }
 
         private void ShowInTaskbarMenuItem_CheckedChanged(object sender, EventArgs e)
@@ -532,7 +533,6 @@ namespace ActiveWindowMonitor
             MessageBox.Show("配置已应用。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
-        // ===== 新增：关于对话框 =====
         private void About_Click(object sender, EventArgs e)
         {
             using (var about = new AboutForm())
@@ -563,14 +563,13 @@ namespace ActiveWindowMonitor
                 this.Hide();
         }
 
-        // ---------- 配置读写（增加宽/高支持） ----------
+        // ---------- 配置读写 ----------
         private void LoadSettings()
         {
             try
             {
                 if (!File.Exists(settingsFile))
                 {
-                    // 无配置文件时居中显示并采用默认尺寸
                     this.StartPosition = FormStartPosition.CenterScreen;
                     this.ShowInTaskbar = false;
                     showInTaskbarMenuItem.Checked = false;
@@ -587,31 +586,21 @@ namespace ActiveWindowMonitor
 
                 foreach (string line in lines)
                 {
-                    if (line.StartsWith("X="))
-                        int.TryParse(line.Substring(2), out x);
-                    else if (line.StartsWith("Y="))
-                        int.TryParse(line.Substring(2), out y);
-                    else if (line.StartsWith("Width="))
-                        int.TryParse(line.Substring(6), out width);
-                    else if (line.StartsWith("Height="))
-                        int.TryParse(line.Substring(7), out height);
-                    else if (line.StartsWith("ShowInTaskbar="))
-                        bool.TryParse(line.Substring(15), out showInTaskbar);
-                    else if (line.StartsWith("FontName="))
-                        fontName = line.Substring(9);
-                    else if (line.StartsWith("FontSize="))
-                        float.TryParse(line.Substring(9), out fontSize);
+                    if (line.StartsWith("X=")) int.TryParse(line.Substring(2), out x);
+                    else if (line.StartsWith("Y=")) int.TryParse(line.Substring(2), out y);
+                    else if (line.StartsWith("Width=")) int.TryParse(line.Substring(6), out width);
+                    else if (line.StartsWith("Height=")) int.TryParse(line.Substring(7), out height);
+                    else if (line.StartsWith("ShowInTaskbar=")) bool.TryParse(line.Substring(15), out showInTaskbar);
+                    else if (line.StartsWith("FontName=")) fontName = line.Substring(9);
+                    else if (line.StartsWith("FontSize=")) float.TryParse(line.Substring(9), out fontSize);
                 }
 
-                // 确保尺寸合理
                 if (width < 100) width = 100;
                 if (height < 100) height = 100;
 
                 this.StartPosition = FormStartPosition.Manual;
-                Point savedLocation = new Point(x, y);
-                this.Location = EnsureVisibleLocation(savedLocation);
+                this.Location = EnsureVisibleLocation(new Point(x, y));
                 this.Size = new Size(width, height);
-
                 this.ShowInTaskbar = showInTaskbar;
                 showInTaskbarMenuItem.Checked = showInTaskbar;
 
@@ -625,7 +614,6 @@ namespace ActiveWindowMonitor
             }
             catch
             {
-                // 出错时使用默认值
                 this.StartPosition = FormStartPosition.CenterScreen;
                 this.ShowInTaskbar = false;
                 showInTaskbarMenuItem.Checked = false;
@@ -669,12 +657,10 @@ namespace ActiveWindowMonitor
             Rectangle bounds = new Rectangle(location, this.Size);
             foreach (Screen screen in Screen.AllScreens)
             {
-                // 只要窗口有任意一部分在工作区内即视为有效
                 if (screen.WorkingArea.IntersectsWith(bounds))
                     return location;
             }
 
-            // 完全不在任何屏幕内则居中到主屏幕
             Rectangle primaryWorkingArea = Screen.PrimaryScreen.WorkingArea;
             return new Point(
                 primaryWorkingArea.Left + (primaryWorkingArea.Width - this.Width) / 2,
@@ -696,17 +682,26 @@ namespace ActiveWindowMonitor
         }
     }
 
-    // ========== 新增：关于窗口 ==========
+    // ========== 关于窗口（带图标、可调整大小、不自动全选文本、手动定位） ==========
     public class AboutForm : Form
     {
         public AboutForm()
         {
             this.Text = "关于 XFocusKeeper";
-            this.Size = new Size(400, 300);
-            this.StartPosition = FormStartPosition.CenterParent;
-            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.Size = new Size(400, 200);
+            this.StartPosition = FormStartPosition.Manual;
+            this.Left = 300;
+            this.Top = 150;
+            this.FormBorderStyle = FormBorderStyle.Sizable;
             this.MaximizeBox = false;
             this.MinimizeBox = false;
+
+            // 使用与主窗口相同的图标
+            try
+            {
+                this.Icon = Form1.GetAppIcon();
+            }
+            catch { }  // 万一失败也不影响显示
 
             TextBox txt = new TextBox
             {
@@ -720,7 +715,6 @@ namespace ActiveWindowMonitor
             };
             this.Controls.Add(txt);
 
-            // 尝试加载同目录下的 contact.txt
             string contactPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "contact.txt");
             if (File.Exists(contactPath))
             {
@@ -735,14 +729,19 @@ namespace ActiveWindowMonitor
             }
             else
             {
-                // 兜底文本，使用 laogao2026@qq.com 作为主邮箱
+                // 传统拼接，兼容 C# 5
                 txt.Text =
+                    "XFocusKeeper v" + Form1.AppVersion + "\r\n" +
                     "=== 联系作者 ===\r\n" +
                     "邮箱：laogao2026@qq.com\r\n" +
                     "QQ：1975880301\r\n" +
                     "微信：gaorunbo2020\r\n" +
                     "GitHub：https://github.com/gaorunboa/XFocusKeeper";
             }
+
+            // 取消文本全选，光标置于开头
+            txt.SelectionStart = 0;
+            txt.SelectionLength = 0;
         }
     }
 }
