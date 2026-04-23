@@ -212,6 +212,11 @@ namespace ActiveWindowMonitor
             trayMenu.Items.Add("-");
             trayMenu.Items.Add("保存配置", null, SaveConfig_Click);
             trayMenu.Items.Add("应用配置", null, ApplyConfig_Click);
+
+            // ===== 新增：关于 / 联系我 =====
+            trayMenu.Items.Add("-");
+            trayMenu.Items.Add("关于 / 联系我", null, About_Click);
+
             trayMenu.Items.Add("-");
             trayMenu.Items.Add("退出", null, Exit_Click);
 
@@ -526,6 +531,15 @@ namespace ActiveWindowMonitor
             MessageBox.Show("配置已应用。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
+        // ===== 新增：关于对话框 =====
+        private void About_Click(object sender, EventArgs e)
+        {
+            using (var about = new AboutForm())
+            {
+                about.ShowDialog(this);
+            }
+        }
+
         private void Exit_Click(object sender, EventArgs e)
         {
             SaveSettings();
@@ -678,6 +692,56 @@ namespace ActiveWindowMonitor
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new Form1());
+        }
+    }
+
+    // ========== 新增：关于窗口 ==========
+    public class AboutForm : Form
+    {
+        public AboutForm()
+        {
+            this.Text = "关于 XFocusKeeper";
+            this.Size = new Size(400, 300);
+            this.StartPosition = FormStartPosition.CenterParent;
+            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.MaximizeBox = false;
+            this.MinimizeBox = false;
+
+            TextBox txt = new TextBox
+            {
+                Multiline = true,
+                ReadOnly = true,
+                Dock = DockStyle.Fill,
+                WordWrap = true,
+                ScrollBars = ScrollBars.Vertical,
+                Font = new Font("Consolas", 10),
+                Text = "加载中..."
+            };
+            this.Controls.Add(txt);
+
+            // 尝试加载同目录下的 contact.txt
+            string contactPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "contact.txt");
+            if (File.Exists(contactPath))
+            {
+                try
+                {
+                    txt.Text = File.ReadAllText(contactPath, Encoding.UTF8);
+                }
+                catch
+                {
+                    txt.Text = "无法读取联系方式文件。";
+                }
+            }
+            else
+            {
+                // 兜底文本，使用 laogao2026@qq.com 作为主邮箱
+                txt.Text =
+                    "=== 联系作者 ===\r\n" +
+                    "邮箱：laogao2026@qq.com\r\n" +
+                    "QQ：1975880301\r\n" +
+                    "微信：gaorunbo2020\r\n" +
+                    "GitHub：https://github.com/gaorunboa/XFocusKeeper";
+            }
         }
     }
 }
