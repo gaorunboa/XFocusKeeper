@@ -1,5 +1,5 @@
-.ahk
-.cmd
+*.ahk
+*.cmd
 ask-spec-ctxt-actn/
 ask/
 
