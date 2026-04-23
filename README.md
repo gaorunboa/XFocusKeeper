@@ -1,5 +1,4 @@
 最新版下载：[v1.0.0 Release](https://github.com/gaorunboa/XFocusKeeper/releases/tag/v1.0.0)
-
 # ActiveWindowMonitor
 一个用于实时监视 Windows 活动窗口信息的桌面工具。它能够显示前台窗口的句柄、进程 ID 以及可执行文件路径，并将窗口切换历史记录到日志文件中。程序还提供了焦点保护功能——可以将某些不想要的窗口（如远程桌面、WSL 终端）自动最小化，并尝试恢复上一个正常窗口。
 
