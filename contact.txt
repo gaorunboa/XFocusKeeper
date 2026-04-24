@@ -1,3 +1,4 @@
+XFocusKeeper v1.0.0
 === 联系作者 ===
 邮箱：laogao2026@qq.com
 备用：1975880301@qq.com

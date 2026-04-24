@@ -6,7 +6,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms;
-namespace ActiveWindowMonitor
+namespace XFocusKeeper
 {
     public class Form1 : Form
     {
@@ -81,7 +81,7 @@ namespace ActiveWindowMonitor
             currentProcessId = Process.GetCurrentProcess().Id;
 
             // 配置文件直接放在exe所在目录
-            settingsFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ActiveWindowMonitor.ini");
+            settingsFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "XFocusKeeper.ini");
             TryMigrateOldSettings();
 
             // 初始化日志目录（放在exe同目录下的logs子文件夹）
@@ -107,7 +107,7 @@ namespace ActiveWindowMonitor
                 {
                     string oldAppDataFolder = Path.Combine(
                         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                        "ActiveWindowMonitor");
+                        "XFocusKeeper");
                     string oldSettingsFile = Path.Combine(oldAppDataFolder, "settings.ini");
                     if (File.Exists(oldSettingsFile))
                     {
