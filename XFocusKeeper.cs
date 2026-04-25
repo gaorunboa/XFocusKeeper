@@ -572,13 +572,13 @@ namespace XFocusKeeper
                     this.StartPosition = FormStartPosition.CenterScreen;
                     this.ShowInTaskbar = false;
                     showInTaskbarMenuItem.Checked = false;
-                    this.Size = new Size(550, 250);
+                    this.Size = new Size(200, 250);
                     UpdateFontMenuChecks();
                     return;
                 }
 
                 string[] lines = File.ReadAllLines(settingsFile);
-                int x = 0, y = 0, width = 550, height = 250;
+                int x = 0, y = 0, width = 200, height = 250;
                 bool showInTaskbar = false;
                 string fontName = "Consolas";
                 float fontSize = 11f;
